@@ -28,7 +28,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf
         timstr = datetime.datetime.now().strftime("%m%d-%H%M%S")
         if fname is None:
             fname = datasets + "-" + timstr + "-" + self._random_str() + ".pt"

@@ -7,6 +7,8 @@ import scipy.sparse as sp
 import torch
 from normalization import fetch_normalization, row_normalize
 from make_dataset import get_dataset, get_train_val_test_split
+import math
+
 
 datadir = "data"
 
@@ -142,3 +144,30 @@ def dataset_str_mapping(dataset):
                 'aec': 'amazon_electronics_computers',
                 'aep': 'amazon_electronics_photo'}
     return map_dict[dataset]
+
+def gaussian_projector(d_in: int, d_out: int, seed: int = 0, orthogonalize: bool = True, device=None):
+    """
+    JL projector R in R^{d_in x d_out}
+    Entries ~ N(0, 1/d_out). Optionally orthogonalize columns to reduce variance.
+    """
+    g = torch.Generator(device=device).manual_seed(seed)
+    R = torch.randn((d_in, d_out), generator=g, device=device) / math.sqrt(d_out)
+    if orthogonalize:
+        # QR on a tall matrix is fine; just keep first d_out columns
+        # (if d_out > d_in, skip orthogonalization)
+        if d_out <= d_in:
+            Q, _ = torch.linalg.qr(R, mode="reduced")
+            R = Q[:, :d_out]
+    return R
+
+@torch.no_grad()
+def jl_project_features(X: torch.Tensor, d_out: int, seed: int = 0, orthogonalize: bool = True):
+    """
+    X: [num_nodes, d_in] -> Z: [num_nodes, d_out], using a FROZEN random matrix.
+    Returns Z, R (so you can reuse R for consistency across runs/epochs).
+    """
+    device = X.device
+    d_in = X.size(-1)
+    R = gaussian_projector(d_in, d_out, seed=seed, orthogonalize=orthogonalize, device=device)
+    Z = X @ R
+    return Z, R

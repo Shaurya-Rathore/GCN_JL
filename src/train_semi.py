@@ -8,6 +8,7 @@ from metric import accuracy, roc_auc_compute_fn
 from models import *
 from earlystopping import EarlyStopping
 from sample import Sampler
+from utils import jl_project_features
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -70,6 +71,12 @@ parser.add_argument("--a", type=float, default=1.0,
                     help="The percent of the preserve edges from output. Only used in conditional method")
 parser.add_argument("--alpha", type=float, default=0.2, help="alpha param for APPNP.")
 
+# JL toggles
+parser.add_argument("--jl-dim", type=int, default=0, help="0 disables JL; else project features to this dim.")
+parser.add_argument("--jl-seed", type=int, default=0, help="Random seed for JL projector.")
+parser.add_argument("--jl-orth", action="store_true", default=True, help="Orthogonalize JL columns (QR).")
+
+
 args = parser.parse_args()
 print(args)
 
@@ -97,7 +104,14 @@ torch.manual_seed(args.seed)
 if args.cuda or args.mixmode:
     torch.cuda.manual_seed(args.seed)
 
-
+def maybe_project_features(feat_tensor, args):
+    # feat_tensor: torch.FloatTensor [N, d_in] (on CPU or CUDA)
+    if args.jl_dim and args.jl_dim > 0 and feat_tensor.size(1) > args.jl_dim:
+        Z, _ = jl_project_features(feat_tensor, d_out=args.jl_dim,
+                                   seed=args.jl_seed, orthogonalize=args.jl_orth)
+        return Z
+    return feat_tensor
+    
 def main():
     # get labels and indexes
     labels, idx_train, idx_val, idx_test = sampler.get_label_and_idxes(args.cuda)
